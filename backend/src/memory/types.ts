@@ -7,7 +7,10 @@ export type HistoryAction = 'CREATED' | 'SUPERSEDED' | 'REINFORCED' | 'FORGOTTEN
 export interface User {
   id: string;
   name: string;
+  email?: string;
+  passwordHash?: string;
   avatar?: string;
+  role?: 'user' | 'admin' | 'judge';
   createdAt: string;
 }
 
@@ -35,8 +38,21 @@ export interface Memory {
   embedding: number[];
   version: number;
   supersededById: string | null;
+  tier?: 'hot' | 'cold_archive';
+  lastAccessedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DatabaseStats {
+  storageEngine: string;
+  journalMode: string;
+  totalSizeKb: number;
+  hotMemoriesCount: number;
+  coldMemoriesCount: number;
+  historyEventsCount: number;
+  cacheEfficiency: string;
+  lastCompactedAt: string;
 }
 
 export interface MemoryHistory {

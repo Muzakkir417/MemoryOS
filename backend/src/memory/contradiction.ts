@@ -56,19 +56,34 @@ export class ContradictionEngine {
     }
 
     // 2. Search for existing memories sharing the same predicate or overlapping semantic scope
+    const isScopeOverlap = (s1: string, s2: string) => {
+      const a = s1.toLowerCase().trim();
+      const b = s2.toLowerCase().trim();
+      if (a === b) return true;
+      if (a === 'general' || b === 'general') return true;
+      if (a.includes(b) || b.includes(a)) return true;
+      return false;
+    };
+
+    const isPredicateMatch = (p1: string, p2: string) => {
+      if (p1 === p2) return true;
+      const attr1 = p1.includes(':') ? p1.split(':')[1] : p1;
+      const attr2 = p2.includes(':') ? p2.split(':')[1] : p2;
+      if (attr1 === attr2) return true;
+      if (p1.startsWith('preference:') && p2.startsWith('preference:')) return true;
+      if (p1.startsWith('diet:') && p2.startsWith('diet:')) return true;
+      return false;
+    };
+
     const existing = activeMemories.find(
-      m => m.predicate === fact.predicate && (
-        m.contextScope.toLowerCase() === fact.contextScope.toLowerCase() ||
-        m.contextScope === 'general' ||
-        fact.contextScope === 'general'
-      )
+      m => isPredicateMatch(m.predicate, fact.predicate) && isScopeOverlap(m.contextScope, fact.contextScope)
     );
 
     // Case A: No existing memory with this predicate and scope -> CREATE or SCOPE REFINEMENT
     if (!existing) {
       // Check for Scope Refinement: Does another memory exist in the same category with a different scope?
       const otherScopedMemory = activeMemories.find(
-        m => m.category === fact.category && m.contextScope.toLowerCase() !== fact.contextScope.toLowerCase()
+        m => m.category === fact.category && !isScopeOverlap(m.contextScope, fact.contextScope)
       );
       const isScopeRefinement = Boolean(otherScopedMemory);
       const actionType: 'CREATE' | 'SCOPE REFINEMENT' = isScopeRefinement ? 'SCOPE REFINEMENT' : 'CREATE';

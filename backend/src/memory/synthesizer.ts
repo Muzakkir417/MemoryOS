@@ -1,4 +1,4 @@
-import { llmService } from '../services/llm.js';
+import { llmService, LLMOptions } from '../services/llm.js';
 import { memoryRetriever } from './retriever.js';
 import { ProvenanceCitation } from './types.js';
 
@@ -11,7 +11,8 @@ export class MemorySynthesizer {
   public async generateAnswer(
     userId: string,
     userQuery: string,
-    conversationHistory: { role: 'user' | 'assistant'; content: string }[] = []
+    conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [],
+    options?: LLMOptions
   ): Promise<SynthesisOutput> {
     const { citations, contextString } = await memoryRetriever.retrieveRelevantMemories(userId, userQuery);
 
@@ -32,7 +33,7 @@ Instructions for Generation:
       { role: 'user' as const, content: userQuery }
     ];
 
-    const response = await llmService.complete(messages, false);
+    const response = await llmService.complete(messages, false, options);
 
     return {
       response,

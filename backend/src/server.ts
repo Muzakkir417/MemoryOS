@@ -25,6 +25,8 @@ seedInitialData();
 app.use('/api/chat', chatRouter);
 app.use('/api/memories', memoriesRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/auth', usersRouter);
+app.use('/api/db', usersRouter);
 app.use('/api/demo', demoRouter);
 
 app.get('/api/health', (req, res) => {

@@ -11,6 +11,8 @@ backend/.env
 # Databases & SQLite files
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
 test_*.db
 backend/*.db
 

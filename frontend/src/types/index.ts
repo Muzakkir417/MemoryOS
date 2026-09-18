@@ -79,3 +79,16 @@ export interface ChatResponse {
   }[];
   activeMemoriesCount: number;
 }
+
+export interface DatabaseStats {
+  storageEngine: string;
+  journalMode: string;
+  totalSizeKb: number;
+  hotMemoriesCount: number;
+  coldMemoriesCount: number;
+  historyEventsCount: number;
+  cacheEfficiency: string;
+  lastCompactedAt: string | null;
+}
+
+

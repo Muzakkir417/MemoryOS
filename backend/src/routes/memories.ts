@@ -1,16 +1,19 @@
 import { Router } from 'express';
 import { dbService } from '../db/database.js';
+import { authMiddleware, AuthenticatedRequest } from '../auth/auth.js';
 
 export const memoriesRouter = Router();
 
+memoriesRouter.use(authMiddleware);
+
 // Get memories for a user with optional status filter
-memoriesRouter.get('/', (req, res): void => {
+memoriesRouter.get('/', (req: AuthenticatedRequest, res): void => {
   try {
-    const userId = req.query.userId as string;
+    const userId = req.user?.id || (req.query.userId as string);
     const status = req.query.status as string;
 
     if (!userId) {
-      res.status(400).json({ error: 'userId is required' });
+      res.status(400).json({ error: 'userId (or session login) is required' });
       return;
     }
 
@@ -31,11 +34,11 @@ memoriesRouter.get('/', (req, res): void => {
 });
 
 // Get full memory change audit trail
-memoriesRouter.get('/history', (req, res): void => {
+memoriesRouter.get('/history', (req: AuthenticatedRequest, res): void => {
   try {
-    const userId = req.query.userId as string;
+    const userId = req.user?.id || (req.query.userId as string);
     if (!userId) {
-      res.status(400).json({ error: 'userId is required' });
+      res.status(400).json({ error: 'userId (or session login) is required' });
       return;
     }
 

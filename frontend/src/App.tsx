@@ -3,35 +3,55 @@ import { Header } from './components/Header.js';
 import { ChatInterface } from './components/ChatInterface.js';
 import { MemoryInspector } from './components/MemoryInspector.js';
 import { JudgeDemoModal } from './components/JudgeDemoModal.js';
+import { AuthModal } from './components/AuthModal.js';
+import { SettingsModal } from './components/SettingsModal.js';
 import { api } from './services/api.js';
 import { Memory, MemoryHistory, Message, User, ProvenanceCitation } from './types/index.js';
 
 export function App() {
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authenticatedUser, setAuthenticatedUser] = useState<any | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeMemories, setActiveMemories] = useState<Memory[]>([]);
   const [supersededMemories, setSupersededMemories] = useState<Memory[]>([]);
   const [history, setHistory] = useState<MemoryHistory[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDemoModalOpen, setIsDemoModalOpen] = useState<boolean>(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
 
-  // Initial load: Fetch users
-  useEffect(() => {
-    async function initUsers() {
-      try {
-        const uList = await api.getUsers();
-        setUsers(uList);
-        // Default to Judge Sandbox or first user
+  const initUsers = async () => {
+    try {
+      const uList = await api.getUsers();
+      setUsers(uList);
+      if (!currentUser && uList.length > 0) {
         const defaultUser = uList.find(u => u.id === 'user_judge') || uList[0];
-        if (defaultUser) {
-          setCurrentUser(defaultUser);
+        setCurrentUser(defaultUser);
+      }
+    } catch (err) {
+      console.error('Failed to load users:', err);
+    }
+  };
+
+  // Initial load: Check JWT session and load users
+  useEffect(() => {
+    initUsers();
+
+    async function checkSession() {
+      const token = localStorage.getItem('memoryos_token');
+      if (token) {
+        try {
+          const res = await api.getMe();
+          if (res.success && res.user) {
+            setAuthenticatedUser(res.user);
+          }
+        } catch {
+          localStorage.removeItem('memoryos_token');
         }
-      } catch (err) {
-        console.error('Failed to load users:', err);
       }
     }
-    initUsers();
+    checkSession();
   }, []);
 
   // When current user changes, reload memories, history, and message transcript
@@ -118,15 +138,31 @@ export function App() {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('memoryos_token');
+    setAuthenticatedUser(null);
+  };
+
+  const handleAuthSuccess = async (user: any) => {
+    setAuthenticatedUser(user);
+    await initUsers();
+    // Switch to authenticated user's workspace
+    setCurrentUser(user);
+  };
+
   return (
     <div className="flex flex-col h-screen bg-[#0a0d14] text-slate-100 font-sans">
       {/* Top Navigation */}
       <Header
         users={users}
         currentUser={currentUser}
+        authenticatedUser={authenticatedUser}
         onSelectUser={(u) => setCurrentUser(u)}
         onResetUser={handleResetSandbox}
         onOpenDemo={() => setIsDemoModalOpen(true)}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
+        onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onLogout={handleLogout}
         activeCount={activeMemories.length}
       />
 
@@ -158,6 +194,19 @@ export function App() {
         onClose={() => setIsDemoModalOpen(false)}
         onCompleteScenario={() => currentUser && loadUserData(currentUser.id)}
         currentUserId={currentUser?.id || 'user_judge'}
+      />
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
+      />
+
+      {/* Engine & Database Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
       />
     </div>
   );
