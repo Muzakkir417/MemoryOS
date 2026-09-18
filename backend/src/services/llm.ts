@@ -346,9 +346,12 @@ export class LLMService {
         });
       }
 
-      // Universal Fallback: If user makes a declarative statement (not a question), save as active fact
-      const isQuestion = clean.endsWith('?') || /^(what|who|where|when|why|how|which|can\s+you|tell\s+me|do\s+you)\b/i.test(clean);
-      if (facts.length === 0 && !isQuestion && clean.length > 3) {
+      // Universal Fallback: If user makes a personal declarative statement about themselves (NOT a command or question)
+      const isCommandOrQuery = 
+        clean.endsWith('?') || 
+        /^(answer|solve|code|write|give|explain|show|generate|create|find|help|tell|describe|implement|list|calculate|summarize|what|who|where|when|why|how|which|can|could|would|is|are|do|does|did|will|should)\b/i.test(clean);
+
+      if (facts.length === 0 && !isCommandOrQuery && (/^(i\s+|my\s+|we\s+|please\s+remember|remember\b)/i.test(clean))) {
         facts.push({
           subject: 'user',
           predicate: 'fact:statement',
@@ -374,10 +377,20 @@ export class LLMService {
     const activeMemoriesMatch = sysMsg.match(/ACTIVE_MEMORIES:\n([\s\S]*?)\nEND_ACTIVE_MEMORIES/);
     const activeMemoriesStr = activeMemoriesMatch ? activeMemoriesMatch[1] : '';
 
-    const isQuestion = clean.endsWith('?') || /^(what|who|where|when|why|how|which|can\s+you|tell\s+me|do\s+you|what's|is\s+there)\b/i.test(clean);
+    const isCommandOrQuery = 
+      clean.endsWith('?') || 
+      /^(answer|solve|code|write|give|explain|show|generate|create|find|help|tell|describe|implement|list|calculate|summarize|what|who|where|when|why|how|which|can|could|would|is|are|do|does|did|will|should)\b/i.test(clean);
+
+    let preferredDsaLang = 'Java';
+    const dsaMatch = activeMemoriesStr.match(/preference:dsa\s*=\s*([a-zA-Z0-9_+ -]+)/i);
+    if (dsaMatch) {
+      preferredDsaLang = dsaMatch[1].trim();
+    }
 
     if (!activeMemoriesStr || activeMemoriesStr.trim() === 'No specific active memories found.') {
-      if (isQuestion) {
+      if (isCommandOrQuery) {
+        const generalAns = this.generalKnowledgeBrain(clean, lower, preferredDsaLang);
+        if (generalAns) return generalAns;
         return `I don't have that saved in your memory yet. Tell me what you prefer, and I will remember it!`;
       }
       return `Got it! I've saved that to your memory.`;
@@ -410,9 +423,9 @@ export class LLMService {
       /^(what\s+do\s+i|what\s+is\s+my|who\s+am\s+i|what\s+did\s+i|what\s+are\s+my|do\s+i\s+like|my\s+preference|what\s+language\s+(?:should|do)|what\s+food)\b/i.test(clean) ||
       (maxOverlap >= 1 && (lower.includes('my') || lower.includes('i ') || lower.includes('prefer') || lower.includes('like') || lower.includes('language') || lower.includes('dsa') || lower.includes('ml')));
 
-    // If it's a general question (weather, general tech, math, greetings, etc.), answer using the general brain
-    if (isQuestion && !isMemoryQuery) {
-      const generalAns = this.generalKnowledgeBrain(clean, lower);
+    // If it's a general question or command (e.g. solve Two Sum, weather, general tech, math, greetings), answer using the general brain
+    if (isCommandOrQuery && !isMemoryQuery) {
+      const generalAns = this.generalKnowledgeBrain(clean, lower, preferredDsaLang);
       if (generalAns) {
         return generalAns;
       }
@@ -427,7 +440,7 @@ export class LLMService {
       val = val.replace(/^(i\s+like|i\s+prefer|my\s+name\s+is)\s+/i, '');
 
       // Case A: User made a declarative statement
-      if (!isQuestion) {
+      if (!isCommandOrQuery) {
         if (pred.includes('name')) return `Nice to meet you, ${val}! I've saved your name.`;
         if (pred.includes('diet') || pred.includes('allergy') || pred.includes('restriction')) return `Got it! I've noted that you are ${val}.`;
         if (pred.includes('dsa')) return `Got it! I will use ${val} for your DSA examples.`;
@@ -454,19 +467,39 @@ export class LLMService {
    * Answers general questions (weather, coding, calculations, facts, greetings)
    * so the assistant is a complete AI rather than just a storage bot.
    */
-  private generalKnowledgeBrain(clean: string, lower: string): string | null {
-    // 1. Greetings & Casual Chat
+  private generalKnowledgeBrain(clean: string, lower: string, preferredLang: string = 'Java'): string | null {
+    // 1. LeetCode / DSA Coding Problem Solver (uses the user's preferred language from memory!)
+    if (lower.includes('two sum') || lower.includes('2 sum')) {
+      const lang = (preferredLang || 'Java').toLowerCase();
+      if (lang.includes('c++') || lang.includes('cpp')) {
+        return `Here is the optimal $O(n)$ solution for **LeetCode 1: Two Sum** in **C++** (using your preferred DSA language):\n\`\`\`cpp\n#include <vector>\n#include <unordered_map>\nusing namespace std;\n\nclass Solution {\npublic:\n    vector<int> twoSum(vector<int>& nums, int target) {\n        unordered_map<int, int> map;\n        for (int i = 0; i < nums.size(); ++i) {\n            int complement = target - nums[i];\n            if (map.find(complement) != map.end()) {\n                return {map[complement], i};\n            }\n            map[nums[i]] = i;\n        }\n        return {};\n    }\n};\n\`\`\`\n**Complexity:** Time: $O(n)$ | Space: $O(n)$ using an unordered hash map.`;
+      }
+      if (lang.includes('python')) {
+        return `Here is the optimal $O(n)$ solution for **LeetCode 1: Two Sum** in **Python** (using your preferred DSA language):\n\`\`\`python\nclass Solution:\n    def twoSum(self, nums: list[int], target: int) -> list[int]:\n        seen = {}\n        for i, num in enumerate(nums):\n            complement = target - num\n            if complement in seen:\n                return [seen[complement], i]\n            seen[num] = i\n        return []\n\`\`\`\n**Complexity:** Time: $O(n)$ | Space: $O(n)$ using a dictionary lookup.`;
+      }
+      return `Here is the optimal $O(n)$ solution for **LeetCode 1: Two Sum** in **Java** (using your preferred DSA language):\n\`\`\`java\nimport java.util.HashMap;\nimport java.util.Map;\n\nclass Solution {\n    public int[] twoSum(int[] nums, int target) {\n        Map<Integer, Integer> map = new HashMap<>();\n        for (int i = 0; i < nums.length; i++) {\n            int complement = target - nums[i];\n            if (map.containsKey(complement)) {\n                return new int[] { map.get(complement), i };\n            }\n            map.put(nums[i], i);\n        }\n        return new int[] {};\n    }\n}\n\`\`\`\n**Complexity:** Time: $O(n)$ | Space: $O(n)$ using a single-pass HashMap.`;
+    }
+
+    if (lower.includes('binary search')) {
+      const lang = (preferredLang || 'Java').toLowerCase();
+      if (lang.includes('python')) {
+        return `Here is **Binary Search** in **Python**:\n\`\`\`python\ndef binary_search(arr: list[int], target: int) -> int:\n    left, right = 0, len(arr) - 1\n    while left <= right:\n        mid = (left + right) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            left = mid + 1\n        else:\n            right = mid - 1\n    return -1\n\`\`\``;
+      }
+      return `Here is **Binary Search** in **${preferredLang || 'Java'}**:\n\`\`\`java\npublic int binarySearch(int[] arr, int target) {\n    int left = 0, right = arr.length - 1;\n    while (left <= right) {\n        int mid = left + (right - left) / 2;\n        if (arr[mid] == target) return mid;\n        if (arr[mid] < target) left = mid + 1;\n        else right = mid - 1;\n    }\n    return -1;\n}\n\`\`\``;
+    }
+
+    // 2. Greetings & Casual Chat
     if (/^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/i.test(clean)) {
-      return `Hello! How can I help you today? You can ask me general questions, get help with coding, or share your preferences and I will remember them across sessions.`;
+      return `Hello! How can I help you today? You can ask me to solve LeetCode problems, answer general questions, or share your preferences and I will remember them across sessions.`;
     }
     if (/^(how\s+are\s+you|how's\s+it\s+going|how\s+are\s+things)\b/i.test(lower)) {
       return `I'm doing great, thank you! Ready to assist you with anything you need. What's on your mind?`;
     }
     if (/^(who\s+are\s+you|what\s+are\s+you|what\s+can\s+you\s+do)\b/i.test(lower)) {
-      return `I am MemoryOS, an intelligent AI assistant powered by a long-term episodic memory engine. I can answer questions, write code, solve problems, and retain your preferences, habits, and context across sessions without confusion or slowdown.`;
+      return `I am MemoryOS, an intelligent AI assistant powered by a long-term episodic memory engine. I can answer questions, solve coding problems in your preferred language, and retain your preferences across sessions without confusion.`;
     }
 
-    // 2. Weather Queries
+    // 3. Weather Queries
     if (lower.includes('weather') || lower.includes('temperature') || lower.includes('forecast')) {
       const cityMatch = clean.match(/(?:in|for|at)\s+([A-Za-z\s]+?)(?:\?|\.|$)/i);
       const city = cityMatch ? cityMatch[1].trim() : 'your area';
@@ -485,7 +518,7 @@ export class LLMService {
       return `The current weather in ${city} is seasonal with typical conditions. For live radar updates and exact hourly temperatures, you can check your local weather app.`;
     }
 
-    // 3. Coding & Programming Questions
+    // 4. Other Coding & Programming Questions
     if (lower.includes('reverse a string') || lower.includes('reverse string')) {
       return `Here is how to reverse a string in Python:\n\`\`\`python\ns = "hello"\nreversed_s = s[::-1]\nprint(reversed_s) # Output: "olleh"\n\`\`\`\nIn JavaScript:\n\`\`\`javascript\nconst reversed = s.split('').reverse().join('');\n\`\`\``;
     }
