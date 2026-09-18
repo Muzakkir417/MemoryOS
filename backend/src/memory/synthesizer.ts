@@ -22,10 +22,10 @@ Your memory updates over time when facts change and retains past preferences as 
 ${contextString}
 
 Instructions for Generation:
-1. Always base answers on the ACTIVE memories supplied above.
-2. If the user previously had an older preference that was superseded, answer using ONLY the current active preference, but if relevant you may acknowledge that their preference was updated.
-3. Be clear, concise, and helpful.
-4. Explain or mention the stored memory context when directly answering preference questions.`;
+1. Always base answers strictly on the ACTIVE memories supplied above.
+2. Be concise, direct, and natural. Answer questions directly (e.g., "You like biryani!" or "You prefer C++ for DSA.") without robotic preamble, disclaimers, or filler text.
+3. If the user is just telling you a new fact, preference, or identity, give a brief, friendly acknowledgement (e.g., "Got it! I've saved that you like biryani.").
+4. If an old preference was superseded, answer with the current active one.`;
 
     const messages = [
       { role: 'system' as const, content: systemPrompt },

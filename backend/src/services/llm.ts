@@ -247,18 +247,18 @@ export class LLMService {
           contextScope: 'diet',
           confidence: 0.95
         });
-      } else if (clean.match(/i\s+(?:only\s+)?(?:drink|eat|love)\s+([^.,]+?)(?:\s+in\s+([^.,]+)|\.|$)/i)) {
-        const dietMatch = clean.match(/i\s+(?:only\s+)?(?:drink|eat|love)\s+([^.,]+?)(?:\s+in\s+([^.,]+)|\.|$)/i);
+      } else if (clean.match(/i\s+(?:really\s+|only\s+)?(?:like|love|eat|drink|enjoy|prefer)\s+([^.,!]+?)(?:\s+(?:for|in)\s+([^.,!]+)|\.|$)/i)) {
+        const dietMatch = clean.match(/i\s+(?:really\s+|only\s+)?(?:like|love|eat|drink|enjoy|prefer)\s+([^.,!]+?)(?:\s+(?:for|in)\s+([^.,!]+)|\.|$)/i);
         if (dietMatch) {
           const item = dietMatch[1].trim();
-          const subScope = dietMatch[2] ? dietMatch[2].trim() : 'diet';
+          const subScope = dietMatch[2] ? cleanScope(dietMatch[2]) : 'food & preferences';
           facts.push({
             subject: 'user',
-            predicate: `diet:${subScope.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}`,
+            predicate: `preference:likes`,
             object: item,
             category: 'preference',
             contextScope: subScope,
-            confidence: 0.94
+            confidence: 0.96
           });
         }
       }
@@ -374,8 +374,13 @@ export class LLMService {
     const activeMemoriesMatch = sysMsg.match(/ACTIVE_MEMORIES:\n([\s\S]*?)\nEND_ACTIVE_MEMORIES/);
     const activeMemoriesStr = activeMemoriesMatch ? activeMemoriesMatch[1] : '';
 
+    const isQuestion = clean.endsWith('?') || /^(what|who|where|when|why|how|which|can\s+you|tell\s+me|do\s+you|what's|is\s+there)\b/i.test(clean);
+
     if (!activeMemoriesStr || activeMemoriesStr.trim() === 'No specific active memories found.') {
-      return `I've noted that! I saved this fact into your persistent MemoryOS profile. Whenever you ask related questions in future sessions, I will tailor my answers using your updated context.`;
+      if (isQuestion) {
+        return `I don't have that saved in your memory yet. Tell me what you prefer, and I will remember it!`;
+      }
+      return `Got it! I've saved that to your memory.`;
     }
 
     // Parse active memory lines to dynamically answer questions
@@ -403,12 +408,31 @@ export class LLMService {
     // Extract predicate and object from bestMatchLine
     const valMatch = bestMatchLine.match(/:\s*([a-zA-Z0-9_+ -]+)\s*=\s*(.*?)\s*\(Confidence/);
     if (valMatch) {
-      const pred = valMatch[1].trim();
-      const val = valMatch[2].trim();
-      return `Based on your stored preferences for **${pred}**, you currently prefer **${val}**. (I am using your current active memory record to answer).`;
+      const pred = valMatch[1].trim().toLowerCase();
+      let val = valMatch[2].trim();
+      val = val.replace(/^(i\s+like|i\s+prefer|my\s+name\s+is)\s+/i, '');
+
+      // Case A: User made a declarative statement
+      if (!isQuestion) {
+        if (pred.includes('name')) return `Nice to meet you, ${val}! I've saved your name.`;
+        if (pred.includes('diet') || pred.includes('allergy') || pred.includes('restriction')) return `Got it! I've noted that you are ${val}.`;
+        if (pred.includes('dsa')) return `Got it! I will use ${val} for your DSA examples.`;
+        if (pred.includes('like') || pred.includes('food') || pred.includes('preference')) return `Got it! I've noted that you like ${val}.`;
+        return `Got it! I've saved that to your memory.`;
+      }
+
+      // Case B: User asked a question -> Direct, simple, concise answer
+      if (pred.includes('name')) return `Your name is ${val}.`;
+      if (pred.includes('dsa')) return `You use ${val} for DSA.`;
+      if (pred.includes('ml') || pred.includes('machine_learning')) return `You use ${val} for Machine Learning.`;
+      if (pred.includes('diet') || pred.includes('allergy') || pred.includes('restriction')) return `You are ${val}.`;
+      if (pred.includes('like') || pred.includes('food') || pred.includes('preference') || pred.includes('statement')) {
+        return `You like ${val}!`;
+      }
+      return `You prefer ${val}.`;
     }
 
-    return `Based on your saved MemoryOS profile, here is what I remember:\n${activeMemoriesStr}\n\nI will continue applying these preferences to your future requests.`;
+    return `You prefer ${memoryLines[0]}.`;
   }
 }
 
