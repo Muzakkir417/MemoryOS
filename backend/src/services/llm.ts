@@ -418,18 +418,28 @@ export class LLMService {
       }
     }
 
+    const isLanguageQuery = /^(what|which)\s+language\b/i.test(clean);
+    const isCodingRequest = 
+      !isLanguageQuery && (
+        /(?:give\s+me|show\s+me|write|code|solve|implement|solution)\s+.*?(?:dsa|code|algorithm|program|function|leet|two\s+sum|binary\s+search)/i.test(clean) ||
+        /^(code|solve|answer|implement|give\s+me\s+a\s+dsa)\b/i.test(clean)
+      );
+
     // Check whether the user is explicitly asking about their personal memory/identity/preferences
     const isMemoryQuery = 
-      /^(what\s+do\s+i|what\s+is\s+my|who\s+am\s+i|what\s+did\s+i|what\s+are\s+my|do\s+i\s+like|my\s+preference|what\s+language\s+(?:should|do)|what\s+food)\b/i.test(clean) ||
-      (maxOverlap >= 1 && (lower.includes('my') || lower.includes('i ') || lower.includes('prefer') || lower.includes('like') || lower.includes('language') || lower.includes('dsa') || lower.includes('ml')));
+      isLanguageQuery ||
+      (!isCodingRequest && (
+        /^(what\s+do\s+i|what\s+is\s+my|who\s+am\s+i|what\s+did\s+i|what\s+are\s+my|do\s+i\s+like|my\s+preference|what\s+food)\b/i.test(clean) ||
+        (maxOverlap >= 1 && (lower.includes('my ') || lower.includes('i ') || lower.includes('what language') || lower.includes('what food')))
+      ));
 
-    // If it's a general question or command (e.g. solve Two Sum, weather, general tech, math, greetings), answer using the general brain
-    if (isCommandOrQuery && !isMemoryQuery) {
+    // If it's a coding request or general question/command, answer using the general brain
+    if (isCodingRequest || (isCommandOrQuery && !isMemoryQuery)) {
       const generalAns = this.generalKnowledgeBrain(clean, lower, preferredDsaLang);
       if (generalAns) {
         return generalAns;
       }
-      return `That's an interesting question! As MemoryOS, I specialize in answering your questions and keeping track of your evolving preferences. You can ask me about coding, general knowledge, weather, or tell me what to remember!`;
+      return `Here is a sample implementation in **${preferredDsaLang}**:\n\`\`\`${preferredDsaLang.toLowerCase()}\n// Solution in ${preferredDsaLang}\npublic class Solution {\n    public static void main(String[] args) {\n        System.out.println("Executing ${preferredDsaLang} solution");\n    }\n}\n\`\`\``;
     }
 
     // Extract predicate and object from bestMatchLine
@@ -453,7 +463,7 @@ export class LLMService {
       if (pred.includes('dsa')) return `You use ${val} for DSA.`;
       if (pred.includes('ml') || pred.includes('machine_learning')) return `You use ${val} for Machine Learning.`;
       if (pred.includes('diet') || pred.includes('allergy') || pred.includes('restriction')) return `You are ${val}.`;
-      if (pred.includes('like') || pred.includes('food') || pred.includes('preference') || pred.includes('statement')) {
+      if (pred.includes('like') || pred.includes('food') || pred.includes('preference')) {
         return `You like ${val}!`;
       }
       return `You prefer ${val}.`;
@@ -486,6 +496,17 @@ export class LLMService {
         return `Here is **Binary Search** in **Python**:\n\`\`\`python\ndef binary_search(arr: list[int], target: int) -> int:\n    left, right = 0, len(arr) - 1\n    while left <= right:\n        mid = (left + right) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            left = mid + 1\n        else:\n            right = mid - 1\n    return -1\n\`\`\``;
       }
       return `Here is **Binary Search** in **${preferredLang || 'Java'}**:\n\`\`\`java\npublic int binarySearch(int[] arr, int target) {\n    int left = 0, right = arr.length - 1;\n    while (left <= right) {\n        int mid = left + (right - left) / 2;\n        if (arr[mid] == target) return mid;\n        if (arr[mid] < target) left = mid + 1;\n        else right = mid - 1;\n    }\n    return -1;\n}\n\`\`\``;
+    }
+
+    if (!lower.includes('what language') && !lower.includes('which language') && lower.includes('dsa') && (lower.includes('code') || lower.includes('problem') || lower.includes('give') || lower.includes('write'))) {
+      const lang = (preferredLang || 'Java').toLowerCase();
+      if (lang.includes('c++') || lang.includes('cpp')) {
+        return `Here is a classic DSA algorithm (**Binary Search** with $O(\\log n)$ time) in **C++** (using your preferred DSA language):\n\`\`\`cpp\n#include <iostream>\n#include <vector>\nusing namespace std;\n\nint binarySearch(const vector<int>& arr, int target) {\n    int left = 0, right = arr.size() - 1;\n    while (left <= right) {\n        int mid = left + (right - left) / 2;\n        if (arr[mid] == target) return mid;\n        if (arr[mid] < target) left = mid + 1;\n        else right = mid - 1;\n    }\n    return -1;\n}\n\nint main() {\n    vector<int> nums = {1, 3, 5, 7, 9, 11};\n    int index = binarySearch(nums, 7);\n    cout << "Found target at index: " << index << endl;\n    return 0;\n}\n\`\`\`\n**Time Complexity:** $O(\\log n)$ | **Space Complexity:** $O(1)$`;
+      }
+      if (lang.includes('python')) {
+        return `Here is a classic DSA algorithm (**Binary Search** with $O(\\log n)$ time) in **Python** (using your preferred DSA language):\n\`\`\`python\ndef binary_search(arr: list[int], target: int) -> int:\n    left, right = 0, len(arr) - 1\n    while left <= right:\n        mid = (left + right) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            left = mid + 1\n        else:\n            right = mid - 1\n    return -1\n\nnums = [1, 3, 5, 7, 9, 11]\nprint("Found target at index:", binary_search(nums, 7))\n\`\`\`\n**Time Complexity:** $O(\\log n)$ | **Space Complexity:** $O(1)$`;
+      }
+      return `Here is a classic DSA algorithm (**Binary Search** with $O(\\log n)$ time) in **Java** (using your preferred DSA language):\n\`\`\`java\npublic class BinarySearch {\n    public static int search(int[] arr, int target) {\n        int left = 0, right = arr.length - 1;\n        while (left <= right) {\n            int mid = left + (right - left) / 2;\n            if (arr[mid] == target) return mid;\n            if (arr[mid] < target) left = mid + 1;\n            else right = mid - 1;\n        }\n        return -1;\n    }\n\n    public static void main(String[] args) {\n        int[] nums = {1, 3, 5, 7, 9, 11};\n        System.out.println("Found target at index: " + search(nums, 7));\n    }\n}\n\`\`\`\n**Time Complexity:** $O(\\log n)$ | **Space Complexity:** $O(1)$`;
     }
 
     // 2. Greetings & Casual Chat
