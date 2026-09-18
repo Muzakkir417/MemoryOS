@@ -39,7 +39,17 @@ User Message: "${userMessage}"`;
       options
     );
 
-    const parsed = JSON.parse(response);
+    let cleaned = response.trim();
+    if (cleaned.includes('```')) {
+      cleaned = cleaned.replace(/^```(?:json)?\s*/im, '').replace(/\s*```$/m, '').replace(/```/g, '').trim();
+    }
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start !== -1 && end !== -1 && end > start) {
+      cleaned = cleaned.substring(start, end + 1);
+    }
+
+    const parsed = JSON.parse(cleaned);
     if (parsed && Array.isArray(parsed.facts)) {
       return parsed.facts;
     }
