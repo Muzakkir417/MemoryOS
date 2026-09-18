@@ -107,7 +107,10 @@ export class DatabaseService {
 
     // Safe schema migrations for existing local databases
     try {
-      this.db.exec(`ALTER TABLE users ADD COLUMN email TEXT UNIQUE;`);
+      this.db.exec(`ALTER TABLE users ADD COLUMN email TEXT;`);
+    } catch {}
+    try {
+      this.db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);`);
     } catch {}
     try {
       this.db.exec(`ALTER TABLE users ADD COLUMN password_hash TEXT;`);
