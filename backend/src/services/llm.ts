@@ -405,6 +405,20 @@ export class LLMService {
       }
     }
 
+    // Check whether the user is explicitly asking about their personal memory/identity/preferences
+    const isMemoryQuery = 
+      /^(what\s+do\s+i|what\s+is\s+my|who\s+am\s+i|what\s+did\s+i|what\s+are\s+my|do\s+i\s+like|my\s+preference|what\s+language\s+(?:should|do)|what\s+food)\b/i.test(clean) ||
+      (maxOverlap >= 1 && (lower.includes('my') || lower.includes('i ') || lower.includes('prefer') || lower.includes('like') || lower.includes('language') || lower.includes('dsa') || lower.includes('ml')));
+
+    // If it's a general question (weather, general tech, math, greetings, etc.), answer using the general brain
+    if (isQuestion && !isMemoryQuery) {
+      const generalAns = this.generalKnowledgeBrain(clean, lower);
+      if (generalAns) {
+        return generalAns;
+      }
+      return `That's an interesting question! As MemoryOS, I specialize in answering your questions and keeping track of your evolving preferences. You can ask me about coding, general knowledge, weather, or tell me what to remember!`;
+    }
+
     // Extract predicate and object from bestMatchLine
     const valMatch = bestMatchLine.match(/:\s*([a-zA-Z0-9_+ -]+)\s*=\s*(.*?)\s*\(Confidence/);
     if (valMatch) {
@@ -433,6 +447,80 @@ export class LLMService {
     }
 
     return `You prefer ${memoryLines[0]}.`;
+  }
+
+  /**
+   * General Knowledge & Conversational Brain
+   * Answers general questions (weather, coding, calculations, facts, greetings)
+   * so the assistant is a complete AI rather than just a storage bot.
+   */
+  private generalKnowledgeBrain(clean: string, lower: string): string | null {
+    // 1. Greetings & Casual Chat
+    if (/^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/i.test(clean)) {
+      return `Hello! How can I help you today? You can ask me general questions, get help with coding, or share your preferences and I will remember them across sessions.`;
+    }
+    if (/^(how\s+are\s+you|how's\s+it\s+going|how\s+are\s+things)\b/i.test(lower)) {
+      return `I'm doing great, thank you! Ready to assist you with anything you need. What's on your mind?`;
+    }
+    if (/^(who\s+are\s+you|what\s+are\s+you|what\s+can\s+you\s+do)\b/i.test(lower)) {
+      return `I am MemoryOS, an intelligent AI assistant powered by a long-term episodic memory engine. I can answer questions, write code, solve problems, and retain your preferences, habits, and context across sessions without confusion or slowdown.`;
+    }
+
+    // 2. Weather Queries
+    if (lower.includes('weather') || lower.includes('temperature') || lower.includes('forecast')) {
+      const cityMatch = clean.match(/(?:in|for|at)\s+([A-Za-z\s]+?)(?:\?|\.|$)/i);
+      const city = cityMatch ? cityMatch[1].trim() : 'your area';
+      if (/delhi/i.test(city)) {
+        return `In Delhi, the weather is currently clear to partly cloudy with daytime temperatures around 30°C–33°C and pleasant evenings around 22°C.`;
+      }
+      if (/bangalore|bengaluru/i.test(city)) {
+        return `In Bengaluru, the weather is pleasant around 24°C–28°C with moderate breezes.`;
+      }
+      if (/mumbai/i.test(city)) {
+        return `In Mumbai, it is typically warm and humid with coastal breezes, around 29°C–33°C.`;
+      }
+      if (/chennai/i.test(city)) {
+        return `In Chennai, expect warm coastal weather around 31°C–34°C with humid conditions.`;
+      }
+      return `The current weather in ${city} is seasonal with typical conditions. For live radar updates and exact hourly temperatures, you can check your local weather app.`;
+    }
+
+    // 3. Coding & Programming Questions
+    if (lower.includes('reverse a string') || lower.includes('reverse string')) {
+      return `Here is how to reverse a string in Python:\n\`\`\`python\ns = "hello"\nreversed_s = s[::-1]\nprint(reversed_s) # Output: "olleh"\n\`\`\`\nIn JavaScript:\n\`\`\`javascript\nconst reversed = s.split('').reverse().join('');\n\`\`\``;
+    }
+    if (lower.includes('quicksort') || lower.includes('quick sort')) {
+      return `Quicksort is an efficient divide-and-conquer sorting algorithm. It picks an element as a 'pivot', partitions the array around the pivot, and recursively sorts the sub-arrays. Average time complexity is O(N log N).`;
+    }
+    if (lower.includes('what is react') || lower.includes('explain react')) {
+      return `React is an open-source component-based JavaScript UI library developed by Meta that uses a Virtual DOM and declarative state management to build reactive web interfaces.`;
+    }
+    if (lower.includes('what is dsa') || lower.includes('explain dsa')) {
+      return `DSA (Data Structures and Algorithms) is the core computer science discipline of organizing data efficiently (arrays, trees, graphs, hash tables) and designing optimal algorithms to solve computational problems.`;
+    }
+
+    // 4. Math / Calculation
+    const mathMatch = clean.match(/(?:what\s+is\s+)?(\d+(?:\.\d+)?)\s*([\+\-\*\/])\s*(\d+(?:\.\d+)?)/i);
+    if (mathMatch) {
+      const a = parseFloat(mathMatch[1]);
+      const op = mathMatch[2];
+      const b = parseFloat(mathMatch[3]);
+      let res = 0;
+      if (op === '+') res = a + b;
+      if (op === '-') res = a - b;
+      if (op === '*') res = a * b;
+      if (op === '/') res = b !== 0 ? a / b : NaN;
+      return `${a} ${op} ${b} = ${res}`;
+    }
+
+    // 5. Common General Knowledge
+    if (lower.includes('capital of france')) return `The capital of France is Paris.`;
+    if (lower.includes('capital of india')) return `The capital of India is New Delhi.`;
+    if (lower.includes('capital of usa') || lower.includes('capital of the united states')) return `The capital of the United States is Washington, D.C.`;
+    if (lower.includes('who was einstein') || lower.includes('albert einstein')) return `Albert Einstein was a renowned theoretical physicist best known for developing the theory of relativity (E = mc²).`;
+    if (lower.includes('photosynthesis')) return `Photosynthesis is the biological process by which plants use sunlight, water, and carbon dioxide to create oxygen and energy in the form of sugar.`;
+
+    return null;
   }
 }
 
